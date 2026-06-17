@@ -96,8 +96,7 @@ class CraigslistScraper(BaseScraper):
         soup = BeautifulSoup(resp.text, "lxml")
         listings = []
 
-        # Handle both old (.result-row) and new (.cl-static-search-result) markup
-        items = soup.select("li.cl-static-search-result, li.result-row")
+        items = soup.select("li.cl-static-search-result")
         for item in items:
             try:
                 listing = self._parse_item(item, filters)
@@ -109,31 +108,28 @@ class CraigslistScraper(BaseScraper):
         return listings
 
     def _parse_item(self, item, filters: dict) -> Listing | None:
-        # Title / link
-        link_el = item.select_one("a.posting-title, a.result-title")
+        link_el = item.select_one("a")
         if not link_el:
             return None
         href = link_el.get("href", "")
-        if href and not href.startswith("http"):
-            href = "https://www.craigslist.org" + href
 
-        title_el = item.select_one(".titlestring, .result-title")
-        title = (title_el or link_el).get_text(strip=True)
+        # Current CL markup: <li title="…"><a …><div class="title">…</div></a></li>
+        title_el = item.select_one(".title")
+        title = title_el.get_text(strip=True) if title_el else item.get("title", "")
+        if not title:
+            return None
 
-        # Price
-        price_el = item.select_one(".priceinfo, .result-price")
+        price_el = item.select_one(".price")
         price = None
         if price_el:
             raw = price_el.get_text(strip=True).replace("$", "").replace(",", "").strip()
             price = int(raw) if raw.isdigit() else None
 
-        # Meta / location
-        meta_el = item.select_one(".meta, .result-hood")
-        location = meta_el.get_text(strip=True) if meta_el else None
+        loc_el = item.select_one(".location")
+        location = loc_el.get_text(strip=True) if loc_el else None
 
         year = extract_year(title)
-        mileage_el = item.select_one(".mileage")
-        mileage = extract_mileage(mileage_el.get_text()) if mileage_el else extract_mileage(title)
+        mileage = extract_mileage(title)
 
         return Listing(
             title=title,
