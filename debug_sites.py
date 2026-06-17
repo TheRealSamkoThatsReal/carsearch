@@ -1,6 +1,5 @@
 """Runs from GitHub Actions to probe site accessibility and extract HTML structure."""
 import requests, json, re
-from bs4 import BeautifulSoup
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -17,14 +16,13 @@ def probe(name, url):
         if r.status_code != 200:
             return
 
-        soup = BeautifulSoup(r.text, 'lxml')
         prices = re.findall(r'\$[\d,]+', r.text)
         print(f"  Dollar amounts: {len(prices)}  sample={prices[:5]}")
 
         # Next.js __NEXT_DATA__
-        nd = soup.find('script', id='__NEXT_DATA__')
-        if nd and nd.string:
-            data = json.loads(nd.string)
+        m = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.+?)</script>', r.text, re.DOTALL)
+        if m:
+            data = json.loads(m.group(1))
             pp = data.get('props', {}).get('pageProps', {})
             print(f"  __NEXT_DATA__ pageProps keys: {list(pp.keys())[:8]}")
             for key in ['inventory', 'vehicles', 'listings', 'results', 'cars', 'data', 'items']:
@@ -38,7 +36,7 @@ def probe(name, url):
                     return
 
         # Nuxt
-        if 'window.__NUXT__' in r.text:
+        if "window.__NUXT__" in r.text:
             print("  Nuxt.js detected")
             prices_raw = re.findall(r'"price"\s*:\s*(\d+)', r.text[:100000])
             print(f"  'price' fields in first 100k: {prices_raw[:5]}")
