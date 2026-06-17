@@ -1,6 +1,14 @@
 {
-  "searched_at": null,
-  "filters": {},
+  "searched_at": "2026-06-17T21:05:26.132097+00:00",
+  "filters": {
+    "make": "Toyota",
+    "model": "Camry",
+    "max_price": 25000,
+    "min_price": 5000,
+    "year_min": 2016,
+    "zip": "94102",
+    "radius": 50
+  },
   "count": 0,
   "errors": [],
   "listings": []
