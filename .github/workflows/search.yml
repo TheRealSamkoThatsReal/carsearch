@@ -1,0 +1,87 @@
+name: Search Cars
+
+on:
+  workflow_dispatch:
+    inputs:
+      make:
+        description: "Car make (e.g., Toyota)"
+        required: false
+        default: ""
+      model:
+        description: "Car model (e.g., Camry)"
+        required: false
+        default: ""
+      style:
+        description: "Body style: sedan, suv, truck, pickup, coupe, hatchback, wagon, convertible, van, minivan"
+        required: false
+        default: ""
+      min_price:
+        description: "Minimum price ($)"
+        required: false
+        default: "500"
+      max_price:
+        description: "Maximum price ($)"
+        required: false
+        default: ""
+      year_min:
+        description: "Earliest model year"
+        required: false
+        default: ""
+      year_max:
+        description: "Latest model year"
+        required: false
+        default: ""
+      zip:
+        description: "ZIP code"
+        required: false
+        default: "94102"
+      radius:
+        description: "Search radius (miles)"
+        required: false
+        default: "50"
+      cl_area:
+        description: "Craigslist area override (e.g. sfbay, chicago, newyork) — auto-detected from ZIP if blank"
+        required: false
+        default: ""
+
+jobs:
+  search:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4 lxml
+
+      - name: Run scraper
+        env:
+          MAKE:      ${{ inputs.make }}
+          MODEL:     ${{ inputs.model }}
+          STYLE:     ${{ inputs.style }}
+          MIN_PRICE: ${{ inputs.min_price }}
+          MAX_PRICE: ${{ inputs.max_price }}
+          YEAR_MIN:  ${{ inputs.year_min }}
+          YEAR_MAX:  ${{ inputs.year_max }}
+          ZIP:       ${{ inputs.zip }}
+          RADIUS:    ${{ inputs.radius }}
+          CL_AREA:   ${{ inputs.cl_area }}
+        run: python run.py
+
+      - name: Commit results
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/results.json
+          git diff --staged --quiet && echo "No changes to commit" || \
+            git commit -m "search: ${{ inputs.make }} ${{ inputs.model }}"
+          git push

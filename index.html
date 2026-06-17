@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CarSearch — Find the Best Used Car Deals</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { animation: spin 0.8s linear infinite; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .fade-up { animation: fadeUp 0.25s ease-out both; }
+
+    @keyframes pulse-soft {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.55; }
+    }
+    .pulse-soft { animation: pulse-soft 1.8s ease-in-out infinite; }
+
+    .card-hover { transition: box-shadow 0.18s, transform 0.18s; }
+    .card-hover:hover { box-shadow: 0 8px 30px -6px rgba(0,0,0,0.18); transform: translateY(-2px); }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen font-sans text-slate-900 antialiased">
+
+<!-- ═══════════════════════════════ SETUP MODAL ══════════════════════════════ -->
+<div id="setupModal"
+  class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden"
+  onclick="if(event.target===this)closeSetup()">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+
+    <div class="bg-indigo-600 px-6 py-4 flex items-center justify-between">
+      <h2 class="text-white text-lg font-bold">GitHub Setup</h2>
+      <button onclick="closeSetup()"
+        class="text-indigo-200 hover:text-white text-2xl leading-none transition-colors">&times;</button>
+    </div>
+
+    <div class="p-6 space-y-4">
+      <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-4 text-sm text-indigo-800 space-y-1">
+        <p class="font-semibold">How it works:</p>
+        <ol class="list-decimal list-inside space-y-0.5 text-indigo-700">
+          <li>Push this code to a GitHub repo</li>
+          <li>Enable Pages: <strong>Settings → Pages → Branch: main</strong></li>
+          <li>Create a PAT with <code class="bg-indigo-100 px-1 rounded">repo</code> + <code class="bg-indigo-100 px-1 rounded">workflow</code> scopes</li>
+          <li>Enter your repo + PAT below and start searching</li>
+        </ol>
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
+          GitHub Repo <span class="font-normal normal-case text-slate-400">(owner/repo)</span>
+        </label>
+        <input id="inputOwnerRepo" type="text" placeholder="johndoe/carsearch" autocomplete="off"
+          class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition" />
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Branch</label>
+        <input id="inputBranch" type="text" value="main"
+          class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition" />
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
+          Personal Access Token
+        </label>
+        <div class="relative">
+          <input id="inputPAT" type="password" placeholder="ghp_xxxxxxxxxxxx" autocomplete="off"
+            class="w-full border border-slate-300 rounded-lg px-3 py-2.5 pr-10 text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition" />
+          <button onclick="togglePATvis()" tabindex="-1"
+            class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition">
+            <svg id="eyeIcon" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            </svg>
+          </button>
+        </div>
+        <p class="text-xs text-slate-500 mt-1.5">
+          Needs <code class="bg-slate-100 px-1 rounded">repo</code> + <code class="bg-slate-100 px-1 rounded">workflow</code> scopes.
+          <a href="https://github.com/settings/tokens/new?scopes=repo,workflow&description=CarSearch"
+            target="_blank" rel="noopener noreferrer"
+            class="text-indigo-600 hover:underline">Create one →</a>
+        </p>
+      </div>
+
+      <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">
+        Your PAT is stored only in <strong>browser localStorage</strong> and sent only to api.github.com.
+      </div>
+    </div>
+
+    <div class="border-t border-slate-100 px-6 py-4 flex gap-3">
+      <button onclick="saveSetup()"
+        class="flex-1 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold py-2.5 rounded-lg transition-colors">
+        Save &amp; Close
+      </button>
+      <button onclick="closeSetup()"
+        class="px-5 py-2.5 border border-slate-300 hover:bg-slate-50 rounded-lg text-slate-700 transition-colors">
+        Cancel
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ HEADER ═══════════════════════════════════ -->
+<header class="bg-gradient-to-r from-indigo-700 to-indigo-600 shadow-lg sticky top-0 z-40">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4">
+    <div class="flex items-center gap-3 min-w-0">
+      <div class="bg-white/15 rounded-xl p-2 flex-shrink-0">
+        <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M1 12l2-7h18l2 7M1 12h22M1 12v5h22v-5"/>
+        </svg>
+      </div>
+      <div class="min-w-0">
+        <h1 class="text-white font-extrabold text-lg tracking-tight leading-none">CarSearch</h1>
+        <p class="text-indigo-200 text-xs mt-0.5 truncate hidden sm:block">
+          Aggregate used-car listings with deal ratings
+        </p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2 flex-shrink-0">
+      <span id="repoChip"
+        class="hidden text-xs font-medium bg-white/15 text-indigo-100 px-2.5 py-1 rounded-full truncate max-w-[140px]"></span>
+      <button onclick="openSetup()"
+        class="flex items-center gap-1.5 text-sm font-medium bg-white/15 hover:bg-white/25 active:bg-white/30 text-white px-3 py-1.5 rounded-lg transition-colors">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+        Setup
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════ MAIN ═════════════════════════════════════ -->
+<main class="max-w-7xl mx-auto px-4 sm:px-6 py-7 space-y-5">
+
+  <!-- Setup CTA -->
+  <div id="setupCTA"
+    class="hidden bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200 rounded-2xl p-8 text-center">
+    <div class="inline-flex items-center justify-center w-14 h-14 bg-indigo-100 rounded-2xl mb-4">
+      <svg class="w-7 h-7 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"/>
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M1 12l2-7h18l2 7M1 12h22M1 12v5h22v-5"/>
+      </svg>
+    </div>
+    <h2 class="text-xl font-bold text-slate-800 mb-2">Welcome to CarSearch</h2>
+    <p class="text-slate-600 text-sm mb-5 max-w-sm mx-auto">
+      Connect your GitHub repo to start scraping listings from Craigslist and Cars.com with automatic deal ratings.
+    </p>
+    <button onclick="openSetup()"
+      class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-7 py-2.5 rounded-xl transition-colors shadow-sm">
+      Get Started →
+    </button>
+  </div>
+
+  <!-- ───────────── Search Form ───────────── -->
+  <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-6">
+    <h2 class="text-base font-bold text-slate-800 mb-5 flex items-center gap-2">
+      <svg class="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/>
+      </svg>
+      Search Filters
+    </h2>
+
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+      <div>
+        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Make</label>
+        <input id="fMake" type="text" placeholder="Toyota, Honda, Ford…"
+          onkeydown="if(event.key==='Enter')startSearch()"
+          class="input-field w-full" />
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Model</label>
+        <input id="fModel" type="text" placeholder="Camry, Civic, F-150…"
+          onkeydown="if(event.key==='Enter')startSearch()"
+          class="input-field w-full" />
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Body Style</label>
+        <select id="fStyle" class="input-field w-full bg-white">
+          <option value="">Any Style</option>
+          <option value="sedan">Sedan</option>
+          <option value="suv">SUV / Crossover</option>
+          <option value="truck">Truck / Pickup</option>
+          <option value="coupe">Coupe</option>
+          <option value="hatchback">Hatchback</option>
+          <option value="wagon">Wagon</option>
+          <option value="convertible">Convertible</option>
+          <option value="van">Van</option>
+          <option value="minivan">Minivan</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+      <div>
+        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Min Price</label>
+        <div class="relative">
+          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">$</span>
+          <input id="fMinPrice" type="number" placeholder="500" min="0" step="500"
+            class="input-field w-full pl-6" />
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Max Price</label>
+        <div class="relative">
+          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none">$</span>
+          <input id="fMaxPrice" type="number" placeholder="50,000" min="0" step="500"
+            class="input-field w-full pl-6" />
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Year Min</label>
+        <input id="fYearMin" type="number" placeholder="2015" min="1980" max="2025"
+          class="input-field w-full" />
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Year Max</label>
+        <input id="fYearMax" type="number" placeholder="2024" min="1980" max="2025"
+          class="input-field w-full" />
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+      <div>
+        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">ZIP Code</label>
+        <input id="fZip" type="text" placeholder="94102" maxlength="5"
+          class="input-field w-full" />
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Search Radius</label>
+        <select id="fRadius" class="input-field w-full bg-white">
+          <option value="25">25 miles</option>
+          <option value="50" selected>50 miles</option>
+          <option value="75">75 miles</option>
+          <option value="100">100 miles</option>
+          <option value="200">200 miles</option>
+        </select>
+      </div>
+      <div>
+        <button id="searchBtn" onclick="startSearch()"
+          class="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-2.5 px-5 rounded-xl transition-colors shadow-sm">
+          <svg id="searchIcon" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
+          <span id="searchBtnLabel">Search Cars</span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────── Status ───────────── -->
+  <div id="statusSection" class="hidden bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+
+    <!-- Step progress -->
+    <div class="flex items-center mb-5">
+      <div class="step-item flex flex-col items-center gap-1.5" id="s1">
+        <div class="w-9 h-9 rounded-full border-2 border-slate-300 flex items-center justify-center
+          text-xs font-bold text-slate-400 transition-all" id="s1dot">1</div>
+        <span class="text-xs text-slate-500">Trigger</span>
+      </div>
+      <div class="flex-1 h-0.5 bg-slate-200 transition-colors" id="line1"></div>
+      <div class="step-item flex flex-col items-center gap-1.5" id="s2">
+        <div class="w-9 h-9 rounded-full border-2 border-slate-300 flex items-center justify-center
+          text-xs font-bold text-slate-400 transition-all" id="s2dot">2</div>
+        <span class="text-xs text-slate-500">Scraping</span>
+      </div>
+      <div class="flex-1 h-0.5 bg-slate-200 transition-colors" id="line2"></div>
+      <div class="step-item flex flex-col items-center gap-1.5" id="s3">
+        <div class="w-9 h-9 rounded-full border-2 border-slate-300 flex items-center justify-center
+          text-xs font-bold text-slate-400 transition-all" id="s3dot">3</div>
+        <span class="text-xs text-slate-500">Fetching</span>
+      </div>
+      <div class="flex-1 h-0.5 bg-slate-200 transition-colors" id="line3"></div>
+      <div class="step-item flex flex-col items-center gap-1.5" id="s4">
+        <div class="w-9 h-9 rounded-full border-2 border-slate-300 flex items-center justify-center
+          text-xs font-bold text-slate-400 transition-all" id="s4dot">4</div>
+        <span class="text-xs text-slate-500">Done</span>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <svg id="statusSpinner"
+        class="spinner w-5 h-5 text-indigo-600 flex-shrink-0" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/>
+        <path class="opacity-75" fill="currentColor"
+          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+      </svg>
+      <p id="statusMsg" class="text-sm text-slate-700 font-medium"></p>
+    </div>
+
+    <div id="errBanner"
+      class="hidden mt-3 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm"></div>
+  </div>
+
+  <!-- ───────────── Results ───────────── -->
+  <section id="resultsSection" class="hidden space-y-4">
+
+    <!-- Stats + Controls bar -->
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm px-5 py-3.5
+      flex flex-wrap items-center gap-3 justify-between">
+
+      <div class="flex items-center gap-4">
+        <div class="text-slate-800">
+          <span id="resultCount" class="text-2xl font-extrabold">0</span>
+          <span class="text-sm text-slate-500 ml-1">listings</span>
+        </div>
+        <div class="hidden sm:block w-px h-7 bg-slate-200"></div>
+        <div id="priceStats" class="hidden sm:block text-sm text-slate-600"></div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <select id="sortSel" onchange="applyFiltersAndSort()"
+          class="input-field text-sm py-1.5 bg-white">
+          <option value="deal">Best Deal First</option>
+          <option value="price_asc">Price: Low → High</option>
+          <option value="price_desc">Price: High → Low</option>
+          <option value="year_desc">Newest Year</option>
+          <option value="mileage_asc">Lowest Mileage</option>
+        </select>
+
+        <select id="sourceSel" onchange="applyFiltersAndSort()"
+          class="input-field text-sm py-1.5 bg-white">
+          <option value="">All Sources</option>
+          <option value="Craigslist">Craigslist</option>
+          <option value="Cars.com">Cars.com</option>
+        </select>
+
+        <select id="dealSel" onchange="applyFiltersAndSort()"
+          class="input-field text-sm py-1.5 bg-white">
+          <option value="">All Ratings</option>
+          <option value="5">★★★★★ Great Deal</option>
+          <option value="4">★★★★ Good+</option>
+          <option value="3">★★★ Fair+</option>
+        </select>
+
+        <button onclick="exportCSV()"
+          class="flex items-center gap-1.5 text-sm border border-slate-300 hover:bg-slate-50
+          rounded-lg px-3 py-1.5 text-slate-700 transition-colors font-medium">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+          </svg>
+          CSV
+        </button>
+      </div>
+    </div>
+
+    <!-- Last searched info -->
+    <div id="searchedAtBar"
+      class="hidden text-xs text-slate-400 text-right pr-1"></div>
+
+    <!-- Cards grid -->
+    <div id="cardsGrid"
+      class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+
+    <!-- Empty state after filter -->
+    <div id="emptyFilter"
+      class="hidden bg-white rounded-2xl border border-slate-200 py-14 text-center text-slate-500">
+      <svg class="w-10 h-10 mx-auto mb-3 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+          d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      </svg>
+      <p class="font-medium">No listings match your filters.</p>
+      <p class="text-sm mt-1">Try adjusting the sort or source filter.</p>
+    </div>
+  </section>
+
+</main>
+
+<footer class="mt-10 pb-8 text-center text-xs text-slate-400 space-x-2">
+  <span>CarSearch</span><span>·</span>
+  <span>Powered by GitHub Actions</span><span>·</span>
+  <span>Data from Craigslist &amp; Cars.com</span>
+</footer>
+
+<!-- ═══════════════════════════════ STYLES (shared field class) ═════════════ -->
+<style>
+  .input-field {
+    border: 1px solid #cbd5e1;
+    border-radius: 0.5rem;
+    padding: 0.575rem 0.75rem;
+    font-size: 0.875rem;
+    outline: none;
+    transition: box-shadow 0.15s, border-color 0.15s;
+    width: 100%;
+  }
+  .input-field:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+  }
+</style>
+
+<!-- ═══════════════════════════════ SCRIPT ═══════════════════════════════════ -->
+<script>
+'use strict'
+
+// ── State ────────────────────────────────────────────────────────────────────
+let cfg   = { owner: '', repo: '', branch: 'main', pat: '' }
+let allListings = []
+let searching   = false
+
+// ── Utils ────────────────────────────────────────────────────────────────────
+const $   = id => document.getElementById(id)
+const esc = s  => s == null ? '' : String(s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+const sleep  = ms => new Promise(r => setTimeout(r, ms))
+const fmt$   = p  => p != null ? `$${Number(p).toLocaleString()}` : '—'
+const fmtMi  = m  => m != null ? `${Math.round(m/1000)}k mi`       : '—'
+
+function ghHeaders() {
+  return {
+    'Authorization':       `Bearer ${cfg.pat}`,
+    'Accept':              'application/vnd.github+json',
+    'X-GitHub-Api-Version':'2022-11-28',
+    'Content-Type':        'application/json',
+  }
+}
+
+function apiBase() {
+  return `https://api.github.com/repos/${cfg.owner}/${cfg.repo}`
+}
+
+// ── Setup ─────────────────────────────────────────────────────────────────────
+function loadCfg() {
+  try {
+    const s = JSON.parse(localStorage.getItem('cs_cfg') || '{}')
+    cfg = { ...cfg, ...s }
+    if (cfg.owner && cfg.repo) {
+      $('inputOwnerRepo').value = `${cfg.owner}/${cfg.repo}`
+      $('inputBranch').value    = cfg.branch
+      $('inputPAT').value       = cfg.pat
+      $('repoChip').textContent = `${cfg.owner}/${cfg.repo}`
+      $('repoChip').classList.remove('hidden')
+      $('setupCTA').classList.add('hidden')
+    } else {
+      $('setupCTA').classList.remove('hidden')
+    }
+  } catch {}
+}
+
+function saveSetup() {
+  const raw = $('inputOwnerRepo').value.trim()
+  const slash = raw.indexOf('/')
+  if (slash < 1) { alert('Enter owner/repo (e.g. johndoe/carsearch)'); return }
+  const pat = $('inputPAT').value.trim()
+  if (!pat) { alert('Enter your GitHub Personal Access Token'); return }
+
+  cfg = {
+    owner:  raw.slice(0, slash).trim(),
+    repo:   raw.slice(slash + 1).trim(),
+    branch: $('inputBranch').value.trim() || 'main',
+    pat,
+  }
+  localStorage.setItem('cs_cfg', JSON.stringify(cfg))
+  $('repoChip').textContent = `${cfg.owner}/${cfg.repo}`
+  $('repoChip').classList.remove('hidden')
+  $('setupCTA').classList.add('hidden')
+  closeSetup()
+}
+
+function openSetup()  { $('setupModal').classList.remove('hidden') }
+function closeSetup() { $('setupModal').classList.add('hidden') }
+
+function togglePATvis() {
+  const el = $('inputPAT')
+  el.type = el.type === 'password' ? 'text' : 'password'
+}
+
+// ── Search flow ───────────────────────────────────────────────────────────────
+async function startSearch() {
+  if (searching) return
+  if (!cfg.owner || !cfg.pat) { openSetup(); return }
+
+  const make  = $('fMake').value.trim()
+  const model = $('fModel').value.trim()
+  if (!make && !model) { alert('Enter at least a Make or Model.'); return }
+
+  const inputs = {
+    make,
+    model,
+    style:     $('fStyle').value,
+    min_price: $('fMinPrice').value || '500',
+    max_price: $('fMaxPrice').value || '',
+    year_min:  $('fYearMin').value  || '',
+    year_max:  $('fYearMax').value  || '',
+    zip:       $('fZip').value      || '94102',
+    radius:    $('fRadius').value,
+    cl_area:   '',
+  }
+
+  searching = true
+  $('searchBtn').disabled = true
+  $('searchBtnLabel').textContent = 'Searching…'
+  $('statusSection').classList.remove('hidden')
+  $('errBanner').classList.add('hidden')
+  $('statusSpinner').style.display = ''
+
+  try {
+    setStep(1)
+    setMsg('Triggering GitHub Actions workflow…')
+
+    const triggerTime = Date.now()
+    await triggerWorkflow(inputs)
+
+    setStep(2)
+    setMsg('Waiting for workflow to start…')
+    await sleep(4500)
+
+    const run = await findRun(triggerTime)
+    await waitForRun(run.id)
+
+    setStep(3)
+    setMsg('Fetching results from repo…')
+    await sleep(2500)
+
+    const data  = await fetchResults()
+    allListings = data.listings || []
+
+    setStep(4)
+    setMsg(`Done — found ${allListings.length} listing${allListings.length !== 1 ? 's' : ''}.`)
+    $('statusSpinner').style.display = 'none'
+
+    if (data.searched_at) {
+      $('searchedAtBar').textContent = `Last searched: ${new Date(data.searched_at).toLocaleString()}`
+      $('searchedAtBar').classList.remove('hidden')
+    }
+    if (data.errors?.length) {
+      showErr(`Scraper warnings: ${data.errors.join(' | ')}`, false)
+    }
+
+    renderResults()
+
+  } catch (err) {
+    showErr(err.message || String(err), true)
+    setMsg('Search failed.')
+    $('statusSpinner').style.display = 'none'
+  } finally {
+    searching = false
+    $('searchBtn').disabled = false
+    $('searchBtnLabel').textContent = 'Search Cars'
+  }
+}
+
+async function triggerWorkflow(inputs) {
+  const url  = `${apiBase()}/actions/workflows/search.yml/dispatches`
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: ghHeaders(),
+    body: JSON.stringify({ ref: cfg.branch, inputs }),
+  })
+  if (resp.status === 401) throw new Error('Unauthorized — check your PAT in Setup.')
+  if (resp.status === 404) throw new Error('Workflow not found. Push .github/workflows/search.yml to your repo first.')
+  if (resp.status === 422) throw new Error(`GitHub rejected the request (422). Verify the branch is "${cfg.branch}" and the workflow exists.`)
+  if (!resp.ok) throw new Error(`GitHub API error ${resp.status}`)
+}
+
+async function findRun(triggerTime) {
+  for (let i = 0; i < 24; i++) {
+    await sleep(3500)
+    const resp = await fetch(
+      `${apiBase()}/actions/runs?event=workflow_dispatch&per_page=10`,
+      { headers: ghHeaders() }
+    )
+    if (!resp.ok) throw new Error(`Could not list workflow runs: ${resp.status}`)
+    const data = await resp.json()
+    const run = (data.workflow_runs || []).find(r =>
+      new Date(r.created_at).getTime() >= triggerTime - 60_000 &&
+      (r.path || '').includes('search.yml')
+    )
+    if (run) return run
+    setMsg(`Waiting for run to appear… (${Math.round((i + 1) * 3.5)}s)`)
+  }
+  throw new Error('Timed out waiting for the workflow run to appear. Check the Actions tab in your repo.')
+}
+
+async function waitForRun(runId) {
+  let secs = 0
+  while (secs < 600) {
+    const resp = await fetch(`${apiBase()}/actions/runs/${runId}`, { headers: ghHeaders() })
+    const run  = await resp.json()
+    if (run.status === 'completed') {
+      if (run.conclusion !== 'success')
+        throw new Error(`Workflow ended with conclusion: ${run.conclusion}. Check the Actions tab.`)
+      return run
+    }
+    const t = secs >= 60 ? `${Math.floor(secs/60)}m ${secs%60}s` : `${secs}s`
+    setMsg(`Scraping listings… (${t} elapsed)`)
+    await sleep(5000)
+    secs += 5
+  }
+  throw new Error('Workflow timed out after 10 minutes.')
+}
+
+async function fetchResults() {
+  const resp = await fetch(
+    `${apiBase()}/contents/data/results.json?ref=${cfg.branch}&t=${Date.now()}`,
+    { headers: ghHeaders() }
+  )
+  if (!resp.ok) throw new Error(`Could not fetch results.json: ${resp.status}`)
+  const file    = await resp.json()
+  const content = atob(file.content.replace(/\n/g,''))
+  return JSON.parse(content)
+}
+
+// ── Status UI ────────────────────────────────────────────────────────────────
+function setMsg(text) { $('statusMsg').textContent = text }
+
+function showErr(msg, isError) {
+  const el = $('errBanner')
+  el.textContent = msg
+  el.className = [
+    'mt-3 rounded-xl px-4 py-3 text-sm border',
+    isError
+      ? 'bg-red-50 border-red-200 text-red-700'
+      : 'bg-amber-50 border-amber-200 text-amber-700',
+  ].join(' ')
+  el.classList.remove('hidden')
+}
+
+function setStep(n) {
+  const DONE_CLS   = 'w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-bold'
+  const ACTIVE_CLS = 'w-9 h-9 rounded-full bg-indigo-600 border-2 border-indigo-600 flex items-center justify-center text-white text-xs font-bold ring-4 ring-indigo-100'
+  const IDLE_CLS   = 'w-9 h-9 rounded-full border-2 border-slate-300 flex items-center justify-center text-slate-400 text-xs font-bold'
+
+  for (let i = 1; i <= 4; i++) {
+    const dot = $(`s${i}dot`)
+    if (i < n)      { dot.className = DONE_CLS;   dot.textContent = '✓' }
+    else if (i===n) { dot.className = ACTIVE_CLS; dot.textContent = i }
+    else            { dot.className = IDLE_CLS;   dot.textContent = i }
+  }
+  for (let i = 1; i <= 3; i++) {
+    $(`line${i}`).className = `flex-1 h-0.5 transition-colors ${i < n ? 'bg-indigo-600' : 'bg-slate-200'}`
+  }
+}
+
+// ── Render ───────────────────────────────────────────────────────────────────
+const DEAL = {
+  5: { bg: '#059669', text: '★★★★★  GREAT DEAL' },
+  4: { bg: '#16a34a', text: '★★★★☆  Good Deal'  },
+  3: { bg: '#d97706', text: '★★★☆☆  Fair'        },
+  2: { bg: '#ea580c', text: '★★☆☆☆  High Price'  },
+  1: { bg: '#dc2626', text: '★☆☆☆☆  Overpriced'  },
+  0: { bg: '#94a3b8', text: '—  No Price'          },
+}
+
+const SRC_CLS = {
+  'Craigslist': 'bg-purple-100 text-purple-800',
+  'Cars.com':   'bg-blue-100 text-blue-800',
+}
+
+function renderResults() {
+  $('resultsSection').classList.remove('hidden')
+  applyFiltersAndSort()
+}
+
+function applyFiltersAndSort() {
+  const sortBy = $('sortSel').value
+  const srcF   = $('sourceSel').value
+  const dealF  = parseInt($('dealSel').value) || 0
+
+  let list = allListings.filter(l => {
+    if (srcF  && l.source !== srcF) return false
+    if (dealF && Math.round(l.deal_score || 0) < dealF) return false
+    return true
+  })
+
+  list.sort((a, b) => {
+    switch (sortBy) {
+      case 'deal':        return (b.deal_score||0)-(a.deal_score||0) || (a.price||9e9)-(b.price||9e9)
+      case 'price_asc':   return (a.price||9e9)-(b.price||9e9)
+      case 'price_desc':  return (b.price||0)-(a.price||0)
+      case 'year_desc':   return (b.year||0)-(a.year||0)
+      case 'mileage_asc': return (a.mileage||9e9)-(b.mileage||9e9)
+      default:            return 0
+    }
+  })
+
+  $('resultCount').textContent = list.length
+
+  const priced = allListings.filter(l => l.price)
+  if (priced.length) {
+    const ps   = priced.map(l => l.price).sort((a,b) => a-b)
+    const avg  = ps.reduce((s,p) => s+p, 0) / ps.length
+    const med  = ps[Math.floor(ps.length/2)]
+    $('priceStats').textContent =
+      `Avg ${fmt$(avg)} · Median ${fmt$(med)} · ${fmt$(ps[0])} – ${fmt$(ps[ps.length-1])}`
+    $('priceStats').classList.remove('hidden')
+  }
+
+  const grid = $('cardsGrid')
+  grid.innerHTML = ''
+
+  if (!list.length) {
+    $('emptyFilter').classList.remove('hidden')
+    return
+  }
+  $('emptyFilter').classList.add('hidden')
+
+  list.forEach((l, i) => {
+    const score = Math.round(l.deal_score || 0)
+    const d     = DEAL[score] || DEAL[0]
+    const srcCl = SRC_CLS[l.source] || 'bg-slate-100 text-slate-700'
+    const loc   = l.location ? l.location.slice(0, 18) : '—'
+
+    const card  = document.createElement('div')
+    card.className = 'bg-white rounded-2xl border border-slate-200 overflow-hidden card-hover fade-up flex flex-col'
+    card.style.animationDelay = `${Math.min(i * 30, 300)}ms`
+    card.innerHTML = `
+      <div class="text-white text-xs font-black tracking-widest uppercase px-4 py-2.5"
+        style="background:${d.bg}">${esc(d.text)}</div>
+
+      <div class="p-4 flex flex-col flex-1 gap-3">
+
+        <div class="flex items-start justify-between gap-2">
+          <p class="text-sm font-semibold text-slate-800 leading-snug flex-1 min-w-0 line-clamp-2"
+            title="${esc(l.title)}">${esc(l.title)}</p>
+          <span class="text-lg font-extrabold text-slate-900 whitespace-nowrap flex-shrink-0">${fmt$(l.price)}</span>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2 text-center">
+          <div class="bg-slate-50 rounded-xl py-2 px-1">
+            <div class="text-sm font-bold text-slate-800">${l.year || '—'}</div>
+            <div class="text-xs text-slate-500 mt-0.5">Year</div>
+          </div>
+          <div class="bg-slate-50 rounded-xl py-2 px-1">
+            <div class="text-sm font-bold text-slate-800">${fmtMi(l.mileage)}</div>
+            <div class="text-xs text-slate-500 mt-0.5">Miles</div>
+          </div>
+          <div class="bg-slate-50 rounded-xl py-2 px-1 overflow-hidden">
+            <div class="text-sm font-bold text-slate-800 truncate" title="${esc(l.location)}">${esc(loc)}</div>
+            <div class="text-xs text-slate-500 mt-0.5">Location</div>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between mt-auto pt-2 border-t border-slate-100">
+          <span class="text-xs font-semibold px-2 py-0.5 rounded-full ${srcCl}">${esc(l.source)}</span>
+          ${l.url
+            ? `<a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer"
+                class="flex items-center gap-1 text-sm font-bold text-indigo-600 hover:text-indigo-800 transition-colors">
+                View
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                </svg>
+              </a>`
+            : ''}
+        </div>
+      </div>
+    `
+    grid.appendChild(card)
+  })
+}
+
+// ── CSV Export ────────────────────────────────────────────────────────────────
+function exportCSV() {
+  const cols = ['deal_label','deal_score','title','price','year','mileage','make','model','source','location','url']
+  const rows = [cols.join(','), ...allListings.map(l =>
+    cols.map(c => JSON.stringify(l[c] ?? '')).join(',')
+  )]
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(new Blob([rows.join('\n')], { type: 'text/csv' })),
+    download: `carsearch-${Date.now()}.csv`,
+  })
+  a.click()
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+loadCfg()
+</script>
+</body>
+</html>
