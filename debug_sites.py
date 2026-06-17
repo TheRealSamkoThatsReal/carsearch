@@ -49,7 +49,33 @@ def probe(name, url):
         print(f"\n{name}: ERROR {type(e).__name__}: {e}")
 
 
-probe("CarMax",
-    "https://www.carmax.com/cars/toyota/camry?minPrice=5000&maxPrice=25000&minYear=2016&zip=94102")
-probe("CarsDirect",
-    "https://www.carsdirect.com/cars-for-sale/listing/used/toyota/camry?zip=94102&radius=50&min_price=5000&max_price=25000")
+def probe_carsdirect():
+    HEADERS2 = {
+        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+    }
+    r = requests.get('https://www.carsdirect.com/cars-for-sale/listing/used/toyota/camry?zip=94102&radius=50&min_price=5000&max_price=25000',
+        headers=HEADERS2, timeout=15)
+    html = r.text
+
+    # Find context around first dollar price
+    idx = html.find('$10,000')
+    if idx == -1:
+        idx = html.find('$15,000')
+    if idx != -1:
+        snippet = html[max(0, idx-300):idx+300]
+        print("\nCarsDirect context around first price:")
+        print(snippet[:600])
+
+    # Look for JSON with listing arrays in the full text
+    for pattern in [r'"listings"\s*:\s*\[', r'"vehicles"\s*:\s*\[', r'"inventory"\s*:\s*\[',
+                    r'"cars"\s*:\s*\[', r'"results"\s*:\s*\[']:
+        m = re.search(pattern, html)
+        if m:
+            print(f"\nFound pattern '{pattern}' at position {m.start()}")
+            snippet = html[m.start():m.start()+500]
+            print(snippet[:500])
+            break
+
+probe_carsdirect()
