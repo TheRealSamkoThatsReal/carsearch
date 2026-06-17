@@ -85,13 +85,3 @@ jobs:
           git diff --staged --quiet && echo "No changes to commit" || \
             git commit -m "search: ${{ inputs.make }} ${{ inputs.model }}"
           git push
-
-  # Temporary debug job — remove after testing
-  debug-sites:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: {python-version: "3.12"}
-      - run: pip install requests
-      - run: python debug_sites.py

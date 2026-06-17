@@ -339,7 +339,7 @@
           class="input-field text-sm py-1.5 bg-white">
           <option value="">All Sources</option>
           <option value="Craigslist">Craigslist</option>
-          <option value="Autolist">Autolist</option>
+          <option value="Craigslist (National)">Craigslist (National)</option>
         </select>
 
         <select id="dealSel" onchange="applyFiltersAndSort()"
@@ -387,7 +387,7 @@
 <footer class="mt-10 pb-8 text-center text-xs text-slate-400 space-x-2">
   <span>CarSearch</span><span>·</span>
   <span>Powered by GitHub Actions</span><span>·</span>
-  <span>Data from Craigslist &amp; Autolist</span>
+  <span>Data from Craigslist — local + 4 national metros</span>
 </footer>
 
 <!-- ═══════════════════════════════ STYLES (shared field class) ═════════════ -->
@@ -662,7 +662,7 @@ const DEAL = {
 
 const SRC_CLS = {
   'Craigslist':  'bg-purple-100 text-purple-800',
-  'Autolist': 'bg-yellow-100 text-yellow-800',
+  'Craigslist (National)': 'bg-yellow-100 text-yellow-800',
 }
 
 function renderResults() {
